@@ -1228,4 +1228,241 @@ load();
 render();
 </script>
 </body>
+</html>questions: incoming.questions || [],
+        sessions: incoming.sessions || [],
+        streak: incoming.streak || { count:0, lastDay:null }
+      };
+    } else {
+      const existingQ = new Set(state.bank.questions.map(q => q.question.trim().toLowerCase()));
+      const freshQs = (incoming.questions||[]).filter(q => !existingQ.has((q.question||"").trim().toLowerCase()));
+      state.bank.questions.push(...freshQs);
+      state.bank.sessions = [...(incoming.sessions||[]), ...state.bank.sessions].slice(0,150);
+      if(incoming.streak && incoming.streak.count > (state.bank.streak.count||0)) state.bank.streak = incoming.streak;
+    }
+    save();
+    backupView.pendingImport = null;
+    backupView.importStatus = { type:"success", message: mode==="replace" ? "Backup restored — bank replaced." : "Backup merged into your current bank." };
+    render();
+  },
+  html(){
+    const last = backupView.lastBackupTime();
+    const qCount = state.bank.questions.length;
+    return `
+    <div class="card">
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px;">💾 Backup & Restore</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+        Your data lives in this browser's local storage only — it does <strong>not</strong> sync between browsers,
+        devices, or even different downloaded copies of this file. Export a backup file regularly, especially
+        before switching browsers or devices, so you never lose your question bank or progress.
+      </div>
+      <div style="padding:12px 14px;border-radius:8px;background:${last ? "var(--greenDim)" : "var(--yellowDim)"};border:1px solid ${last ? "var(--green)" : "var(--yellow)"};font-size:13px;color:${last ? "var(--green)" : "var(--yellow)"};margin-bottom:16px;">
+        ${last ? `Last backup: ${fmtDate(last)}` : "⚠️ You haven't exported a backup yet"}
+      </div>
+      <button class="btn btn-primary" id="exportBtn" style="width:100%;" ${qCount===0?"disabled":""}>
+        ⬇️ Export Backup (${qCount} question${qCount!==1?"s":""}, sessions, stats)
+      </button>
+    </div>
+
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:10px;">Restore from Backup</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">
+        Use this on a new browser, new device, or to recover lost data. Choose a backup .json file you previously exported.
+      </div>
+      <div class="dropzone" id="backupDropzone">
+        <input type="file" accept=".json,application/json" id="backupFileInput" style="display:none;" />
+        <div style="font-size:32px;margin-bottom:8px;">📂</div>
+        <div style="font-size:14px;font-weight:600;">Drop backup file here or click to browse</div>
+      </div>
+      <div id="backupStatusArea" style="margin-top:14px;"></div>
+      <div id="backupConfirmArea"></div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:10px;">Tips</div>
+      <ul style="font-size:13px;color:var(--muted);line-height:1.8;padding-left:18px;">
+        <li>Export after big import sessions or before closing your browser for the day</li>
+        <li>Save the backup file somewhere safe — cloud storage, email to yourself, USB drive</li>
+        <li>"Merge" adds new questions without touching what you already have here; "Replace" wipes this bank and loads the backup exactly</li>
+        <li>Backup files are plain JSON — readable as a safety net even outside this app</li>
+      </ul>
+    </div>`;
+  },
+  attach(){
+    const exportBtn = document.getElementById("exportBtn");
+    if(exportBtn) exportBtn.onclick = backupView.exportBackup;
+
+    const dz = document.getElementById("backupDropzone");
+    const fileInput = document.getElementById("backupFileInput");
+    dz.onclick = () => fileInput.click();
+    dz.ondragover = (e) => e.preventDefault();
+    dz.ondrop = (e) => { e.preventDefault(); backupView.handleImportFile(e.dataTransfer.files[0]); };
+    fileInput.onchange = (e) => backupView.handleImportFile(e.target.files[0]);
+
+    const statusArea = document.getElementById("backupStatusArea");
+    if(backupView.importStatus){
+      const s = backupView.importStatus;
+      statusArea.innerHTML = `<div style="padding:12px 14px;border-radius:8px;font-size:13px;
+        background:${s.type==="success"?"var(--greenDim)":"var(--redDim)"};
+        color:${s.type==="success"?"var(--green)":"var(--red)"};
+        border:1px solid ${s.type==="success"?"var(--green)":"var(--red)"};">${esc(s.message)}</div>`;
+    }
+
+    const confirmArea = document.getElementById("backupConfirmArea");
+    if(backupView.pendingImport){
+      const incoming = backupView.pendingImport;
+      confirmArea.innerHTML = `
+        <div style="margin-top:14px;padding:14px;border-radius:8px;background:var(--surface);border:1px solid var(--border);">
+          <div style="font-size:13px;margin-bottom:10px;">Found <strong>${incoming.questions.length}</strong> question(s) and <strong>${(incoming.sessions||[]).length}</strong> session(s) in this backup. How do you want to import it?</div>
+          <div class="row">
+            <button class="btn btn-ghost" id="mergeBtn" style="flex:1;">Merge with current bank</button>
+            <button class="btn btn-danger" id="replaceBtn" style="flex:1;">Replace current bank</button>
+          </div>
+        </div>`;
+      document.getElementById("mergeBtn").onclick = () => backupView.confirmImport("merge");
+      document.getElementById("replaceBtn").onclick = () => {
+        if(confirm("This will permanently erase your current bank and replace it with the backup. Continue?")){
+          backupView.confirmImport("replace");
+        }
+      };
+    } else {
+      confirmArea.innerHTML = "";
+    }
+  }
+};
+
+
+// ═══════════════════════ EDITOR MODAL ═══════════════════════
+function showEditorModal(){
+  const q = state.editingQ;
+  const isNew = q === "new";
+  const base = isNew ? { question:"", options:["","","",""], answer:0, explanation:"", topic:"", difficulty:"medium" } : q;
+  const modalDiv = document.createElement("div");
+  modalDiv.id = "editorModalRoot";
+  modalDiv.style = "position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;";
+  modalDiv.innerHTML = `
+    <div class="card" style="max-width:480px;width:100%;max-height:85vh;overflow-y:auto;" id="editorCard">
+      <div style="font-size:16px;font-weight:700;margin-bottom:16px;">${isNew?"Add New Question":"Edit Question"}</div>
+      <div class="col">
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Question</label>
+          <textarea id="edQuestion" rows="3">${esc(base.question)}</textarea>
+        </div>
+        ${[0,1,2,3].map(i => `
+          <div>
+            <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+              <input type="radio" name="edAnswer" value="${i}" style="width:auto;" ${base.answer===i?"checked":""}/>
+              Option ${["A","B","C","D"][i]} <span class="edAnswerLabel-${i}" style="color:var(--green);${base.answer===i?"":"display:none;"}">(correct)</span>
+            </label>
+            <input class="edOption" data-i="${i}" value="${esc(base.options[i]||"")}" />
+          </div>`).join("")}
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Explanation (optional)</label>
+          <textarea id="edExplanation" rows="2">${esc(base.explanation||"")}</textarea>
+        </div>
+        <div class="row">
+          <div style="flex:1;">
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Topic</label>
+            <input id="edTopic" value="${esc(base.topic||"")}" placeholder="e.g. Pakistan History" />
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Difficulty</label>
+            <select id="edDifficulty">
+              <option value="easy" ${base.difficulty==="easy"?"selected":""}>Easy</option>
+              <option value="medium" ${base.difficulty==="medium"?"selected":""}>Medium</option>
+              <option value="hard" ${base.difficulty==="hard"?"selected":""}>Hard</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button class="btn btn-ghost" id="cancelEdit" style="flex:1;">Cancel</button>
+          <button class="btn btn-primary" id="saveEdit" style="flex:1;">Save</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modalDiv);
+
+  modalDiv.onclick = (e) => { if(e.target===modalDiv){ state.editingQ=null; modalDiv.remove(); render(); } };
+  document.getElementById("editorCard").onclick = (e) => e.stopPropagation();
+  document.querySelectorAll('input[name="edAnswer"]').forEach(radio => {
+    radio.onchange = () => {
+      [0,1,2,3].forEach(i => {
+        document.querySelector(`.edAnswerLabel-${i}`).style.display = (Number(radio.value)===i) ? "inline" : "none";
+      });
+    };
+  });
+  document.getElementById("cancelEdit").onclick = () => { state.editingQ=null; modalDiv.remove(); render(); };
+  document.getElementById("saveEdit").onclick = () => {
+    const question = document.getElementById("edQuestion").value.trim();
+    const options = [0,1,2,3].map(i => document.querySelector(`.edOption[data-i="${i}"]`).value.trim());
+    const answerRadio = document.querySelector('input[name="edAnswer"]:checked');
+    const answer = answerRadio ? Number(answerRadio.value) : 0;
+    const explanation = document.getElementById("edExplanation").value.trim();
+    const topic = document.getElementById("edTopic").value.trim() || "Uncategorized";
+    const difficulty = document.getElementById("edDifficulty").value;
+    if(!question || options.some(o=>!o)){ alert("Please fill in the question and all 4 options."); return; }
+    if(isNew){
+      state.bank.questions.push({
+        question, options, answer, explanation, topic, difficulty,
+        id: uid(), addedAt: Date.now(), bookmarked:false, attempts:0, correctCount:0,
+        srsInterval:0, srsEase:2.5, srsReps:0, dueAt: Date.now()
+      });
+    } else {
+      const target = state.bank.questions.find(x=>x.id===q.id);
+      Object.assign(target, { question, options, answer, explanation, topic, difficulty });
+    }
+    save();
+    state.editingQ = null;
+    modalDiv.remove();
+    render();
+  };
+}
+
+// ─── PWA: service worker registration + install prompt ────────────────
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  showInstallBanner();
+});
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  hideInstallBanner();
+});
+function showInstallBanner(){
+  if(document.getElementById("pwaInstallBanner")) return;
+  if(window.matchMedia("(display-mode: standalone)").matches) return; // already installed
+  const banner = document.createElement("div");
+  banner.id = "pwaInstallBanner";
+  banner.style = "position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--card);border-top:1px solid var(--accent);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 -4px 12px rgba(0,0,0,0.3);";
+  banner.innerHTML = `
+    <div style="font-size:13px;color:var(--text);">📲 Install PPSC MCQ Bank as an app on your phone</div>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <button id="pwaDismiss" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;">Later</button>
+      <button id="pwaInstall" class="btn btn-primary" style="padding:6px 14px;font-size:12px;">Install</button>
+    </div>`;
+  document.body.appendChild(banner);
+  document.getElementById("pwaInstall").onclick = async () => {
+    if(!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    hideInstallBanner();
+  };
+  document.getElementById("pwaDismiss").onclick = hideInstallBanner;
+}
+function hideInstallBanner(){
+  const b = document.getElementById("pwaInstallBanner");
+  if(b) b.remove();
+}
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch((err) => console.warn("SW registration failed:", err));
+  });
+}
+
+// ─── Boot ──────────────────────────────────────────────────────────────
+load();
+render();
+</script>
+</body>
 </html>

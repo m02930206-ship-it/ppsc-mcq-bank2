@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PPSC MCQ Bank</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="theme-color" content="#0F1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PPSC MCQs">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+:root{
+  --bg:#0F1117; --surface:#1A1D26; --card:#21253A; --border:#2E3350;
+  --accent:#4F8EF7; --accentDim:#1E3A6E; --green:#34D399; --greenDim:#064E3B;
+  --red:#F87171; --redDim:#7F1D1D; --yellow:#FBBF24; --yellowDim:#4A3A0A;
+  --purple:#A78BFA; --purpleDim:#352A5C; --text:#E8EAF0; --muted:#6B7280; --dim:#9CA3AF;
+}
+[data-theme="light"]{
+  --bg:#F7F8FC; --surface:#FFFFFF; --card:#FFFFFF; --border:#E2E5EE;
+  --accent:#3B6FE0; --accentDim:#E5EDFF; --green:#0F9D6B; --greenDim:#E3F7EE;
+  --red:#E0473B; --redDim:#FDEAE8; --yellow:#C8860A; --yellowDim:#FCF3DC;
+  --purple:#7C5CE0; --purpleDim:#EEE9FC; --text:#1A1D26; --muted:#8A8F9C; --dim:#5B6072;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .2s,color .2s;}
+::-webkit-scrollbar{width:6px;} ::-webkit-scrollbar-track{background:var(--surface);}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.wrap{max-width:800px;margin:0 auto;padding:0 16px 80px;}
+.btn{cursor:pointer;border:none;border-radius:8px;font-family:inherit;font-weight:600;transition:all .15s;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-primary{background:var(--accent);color:#fff;padding:10px 20px;font-size:14px;}
+.btn-primary:hover:not(:disabled){filter:brightness(1.1);}
+.btn-ghost{background:transparent;color:var(--dim);padding:8px 14px;font-size:13px;border:1px solid var(--border);}
+.btn-ghost:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+.btn-ghost.active{border-color:var(--accent);color:var(--accent);background:var(--accentDim);}
+.btn-danger{background:var(--red);color:#fff;padding:8px 14px;font-size:13px;}
+.btn-danger:hover:not(:disabled){filter:brightness(1.1);}
+.tag{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;background:var(--accentDim);color:var(--accent);}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;}
+input,select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 14px;font-family:inherit;font-size:14px;width:100%;outline:none;transition:border-color .15s;}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+.progress-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;}
+label.chk{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;color:var(--dim);}
+.nav-row{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;}
+.opt-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);padding:12px 16px;border-radius:10px;text-align:left;cursor:pointer;font:inherit;font-size:14px;line-height:1.5;transition:all .15s;width:100%;}
+.dropzone{border:2px dashed var(--border);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--surface);}
+.hidden{display:none !important;}
+.row{display:flex;gap:10px;}
+.col{display:flex;flex-direction:column;gap:16px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.flex-between{display:flex;justify-content:space-between;align-items:center;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// PPSC MCQ Bank — Standalone offline app. No API key, no server required.
+// All data stored in browser localStorage. PDF parsing via pdf.js (client-side).
+// ════════════════════════════════════════════════════════════════════════
+
+const STORAGE_KEY = "ppsc_mcq_bank_standalone_v1";
+const THEME_KEY = "ppsc_theme_standalone";
+const DAY_MS = 86400000;
+
+// ─── State ─────────────────────────────────────────────────────────────
+let state = {
+  bank: { questions: [], sessions: [], streak: { count: 0, lastDay: null } },
+  view: "home",
+  theme: "dark",
+  editingQ: null,
+};
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function shuffle(arr){ return [...arr].sort(() => Math.random()-0.5); }
+function fmtTime(s){ s=Math.max(0,Math.round(s)); return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`; }
+function fmtDate(ts){ return new Date(ts).toLocaleDateString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
+function dayKey(ts){ return new Date(ts).toDateString(); }
+function esc(s){ const d=document.createElement("div"); d.textContent=s==null?"":String(s); return d.innerHTML; }
+function diffColor(d){ return d==="easy" ? "var(--green)" : d==="hard" ? "var(--red)" : "var(--yellow)"; }
+
+function save(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state.bank)); }catch(e){ console.error("save failed", e); }
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const b = JSON.parse(raw);
+      b.questions = (b.questions||[]).map(q => ({
+        bookmarked:false, attempts:0, correctCount:0, difficulty:"medium",
+        srsInterval:0, srsEase:2.5, srsReps:0, dueAt: Date.now(), ...q
+      }));
+      if(!b.streak) b.streak = { count:0, lastDay:null };
+      state.bank = b;
+    }
+    const t = localStorage.getItem(THEME_KEY);
+    if(t) state.theme = t;
+  }catch(e){ console.error("load failed", e); }
+}
+
+function bumpStreak(){
+  const today = dayKey(Date.now());
+  if(state.bank.streak.lastDay === today) return;
+  const yesterday = dayKey(Date.now()-DAY_MS);
+  state.bank.streak.count = state.bank.streak.lastDay === yesterday ? state.bank.streak.count+1 : 1;
+  state.bank.streak.lastDay = today;
+}
+
+// ─── SM-2-lite spaced repetition ──────────────────────────────────────
+function nextSchedule(card, quality){
+  let { srsInterval=0, srsEase=2.5, srsReps=0 } = card;
+  if(quality === 0){
+    srsReps = 0; srsInterval = 0; srsEase = Math.max(1.3, srsEase-0.2);
+  } else {
+    srsReps += 1; srsEase = Math.min(2.8, srsEase+0.05);
+    if(srsReps===1) srsInterval = 1;
+    else if(srsReps===2) srsInterval = 3;
+    else srsInterval = Math.round(srsInterval*srsEase) || 6;
+  }
+  return { srsInterval, srsEase, srsReps, dueAt: Date.now() + srsInterval*DAY_MS };
+}
+
+// ─── Pattern-based MCQ extraction (no AI, no network) ─────────────────
+// Recognizes common PPSC book formats, e.g.:
+//   1. Question text?
+//   (A) opt1   (B) opt2   (C) opt3   (D) opt4
+//   Answer: B
+// or "Q1)", "1)", "A.", "a)" option markers, and answer keys like
+// "Ans: C", "Answer: (C)", "Correct Answer: C" placed after options.
+function extractMCQsFromText(rawText, existingQuestions, defaultTopic){
+  const existing = new Set(existingQuestions.map(q => q.question.trim().toLowerCase()));
+  // Normalize whitespace, keep newlines for structure
+  let text = rawText.replace(/\r/g, "").replace(/[ \t]+/g, " ");
+  // Split into blocks by question-number markers like "1.", "Q1.", "1)", "Q.1"
+  const qSplit = /(?:^|\n)\s*(?:Q\.?\s*)?(\d{1,3})[\.\)]\s+/g;
+  let blocks = [];
+  let lastIndex = 0, lastNum = null, matches = [];
+  let m;
+  while((m = qSplit.exec(text)) !== null){ matches.push({ index: m.index, end: qSplit.lastIndex, num: m[1] }); }
+  if(matches.length < 2){
+    return { mcqs: [], blocksFound: 0 }; // not enough structure recognized
+  }
+  for(let i=0;i<matches.length;i++){
+    const start = matches[i].end;
+    const end = i+1 < matches.length ? matches[i+1].index : text.length;
+    blocks.push(text.slice(start, end).trim());
+  }
+
+  const optionRegex = /(?:^|\n)\s*[\(\[]?([A-Da-d])[\)\].:]\s+(.+?)(?=(?:\n\s*[\(\[]?[A-Da-d][\)\].:]\s+)|\n\s*(?:Ans|Answer|Correct\s*Answer|Key)\b|$)/gs;
+  const answerRegex = /(?:Ans(?:wer)?|Correct\s*Answer|Key)\s*[:\-]?\s*[\(\[]?([A-Da-d])[\)\]]?/i;
+
+  const mcqs = [];
+  let recognized = 0;
+  for(const block of blocks){
+    const ansMatch = block.match(answerRegex);
+    // Question text = everything before the first option marker
+    const firstOptIdx = block.search(/(?:^|\n)\s*[\(\[]?[A-Da-d][\)\].:]\s+/);
+    if(firstOptIdx === -1) continue;
+    let qText = block.slice(0, firstOptIdx).trim().replace(/\n/g, " ").replace(/\s+/g, " ");
+    if(qText.length < 6) continue;
+
+    const optsSection = block.slice(firstOptIdx);
+    let opts = [];
+    let om;
+    optionRegex.lastIndex = 0;
+    while((om = optionRegex.exec(optsSection)) !== null){
+      const letter = om[1].toUpperCase();
+      let val = om[2].trim().replace(/\n/g, " ").replace(/\s+/g, " ");
+      val = val.replace(/(?:Ans(?:wer)?|Correct\s*Answer|Key)\s*[:\-]?\s*[\(\[]?[A-Da-d][\)\]]?\s*$/i, "").trim();
+      if(val) opts.push({ letter, val });
+    }
+    // De-dup by letter, keep first 4 in order A-D
+    const byLetter = {};
+    opts.forEach(o => { if(!byLetter[o.letter]) byLetter[o.letter] = o.val; });
+    const letters = ["A","B","C","D"].filter(l => byLetter[l]);
+    if(letters.length < 3) continue; // not a valid MCQ block
+
+    const optionList = letters.map(l => byLetter[l]);
+    let answerIdx = 0;
+    if(ansMatch){
+      const ansLetter = ansMatch[1].toUpperCase();
+      const idx = letters.indexOf(ansLetter);
+      answerIdx = idx >= 0 ? idx : 0;
+    }
+    recognized++;
+    if(existing.has(qText.trim().toLowerCase())) continue;
+
+    // pad to 4 options if only 3 found
+    while(optionList.length < 4) optionList.push("(no option text found)");
+
+    mcqs.push({
+      question: qText,
+      options: optionList.slice(0,4),
+      answer: Math.min(answerIdx, 3),
+      explanation: "",
+      topic: defaultTopic || "Uncategorized",
+      difficulty: "medium",
+      hasAnswerKey: !!ansMatch,
+      id: uid(), addedAt: Date.now(), bookmarked:false, attempts:0, correctCount:0,
+      srsInterval:0, srsEase:2.5, srsReps:0, dueAt: Date.now(),
+    });
+  }
+  return { mcqs, blocksFound: blocks.length, recognized };
+}
+
+async function readPDFText(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try{
+        const typedArray = new Uint8Array(e.target.result);
+        const pdfjsLib = window["pdfjs-dist/build/pdf"];
+        if(!pdfjsLib) throw new Error("PDF engine not loaded — check your internet connection and refresh.");
+        const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+        let text = "";
+        for(let i=1;i<=pdf.numPages;i++){
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(it => it.str).join(" ") + "\n";
+        }
+        resolve(text);
+      }catch(err){ reject(err); }
+    };
+    reader.onerror = () => reject(new Error("Could not read the file."));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+if(window["pdfjs-dist/build/pdf"]){window["pdfjs-dist/build/pdf"].GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+
+function exportResultPDF({ title, questions, answers, elapsed, topic, negMark }){
+  if(!window.jspdf){ alert("PDF export library still loading — try again in a moment."); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const pageW = doc.internal.pageSize.getWidth();
+  let y = 20;
+  doc.setFontSize(18); doc.setFont(undefined,"bold");
+  doc.text(title, 14, y); y+=8;
+  doc.setFontSize(10); doc.setFont(undefined,"normal"); doc.setTextColor(100);
+  const correct = answers.filter(a=>a&&a.correct).length;
+  const wrong = answers.filter(a=>a&&!a.correct&&!a.skipped).length;
+  let scoreLine = `Score: ${correct}/${answers.length}`;
+  if(negMark) scoreLine += ` (Net: ${(correct - wrong*0.25).toFixed(2)})`;
+  doc.text(`Topic: ${topic==="all"?"All Topics":topic}  |  ${scoreLine}  |  Time: ${fmtTime(elapsed)}  |  ${new Date().toLocaleString()}`, 14, y);
+  y+=10; doc.setDrawColor(220); doc.line(14,y,pageW-14,y); y+=8; doc.setTextColor(0);
+
+  questions.forEach((q,i) => {
+    if(y>270){ doc.addPage(); y=20; }
+    doc.setFont(undefined,"bold"); doc.setFontSize(11);
+    const qLines = doc.splitTextToSize(`${i+1}. ${q.question}`, pageW-28);
+    doc.text(qLines,14,y); y+=qLines.length*5.5+2;
+    doc.setFont(undefined,"normal"); doc.setFontSize(10);
+    q.options.forEach((opt,oi) => {
+      const isAns = oi===q.answer;
+      const wasChosen = answers[i] && answers[i].chosenIdx===oi;
+      let prefix = "   ";
+      if(isAns) prefix=" + ";
+      else if(wasChosen) prefix=" x ";
+      if(isAns) doc.setTextColor(16,122,70);
+      else if(wasChosen) doc.setTextColor(190,30,30);
+      else doc.setTextColor(80);
+      const lines = doc.splitTextToSize(`${prefix}${["A","B","C","D"][oi]}. ${opt}`, pageW-32);
+      doc.text(lines,18,y); y+=lines.length*5;
+    });
+    doc.setTextColor(0);
+    if(q.explanation){
+      doc.setFont(undefined,"italic"); doc.setFontSize(9); doc.setTextColor(110);
+      const expLines = doc.splitTextToSize(`Explanation: ${q.explanation}`, pageW-32);
+      y+=1; doc.text(expLines,18,y); y+=expLines.length*4.5;dz.onclick = () => fileInput.click();
+    dz.ondragover = (e) => e.preventDefault();
+    dz.ondrop = (e) => { e.preventDefault(); importView.handleFiles(e.dataTransfer.files); };
+    fileInput.onchange = (e) => importView.handleFiles(e.target.files);
+    importView.renderQueue();
+  },
+  renderQueue(){
+    const area = document.getElementById("queueArea");
+    if(!area) return;
+    area.innerHTML = importView.queue.map(item => `
+      <div class="flex-between" style="padding:10px 14px;border-radius:8px;font-size:13px;
+        background:${item.status==="done"?"var(--greenDim)":item.status==="error"?"var(--redDim)":"var(--surface)"};
+        border:1px solid ${item.status==="done"?"var(--green)":item.status==="error"?"var(--red)":"var(--border)"};">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">${esc(item.name)}</span>
+        <span style="color:${item.status==="done"?"var(--green)":item.status==="error"?"var(--red)":"var(--muted)"};font-size:12px;">
+          ${item.status==="loading"||item.status==="queued" ? "⏳ " : ""}${esc(item.message)}
+        </span>
+      </div>`).join("");
+  },
+  pendingReview: [],
+  async handleFiles(fileList){
+    const files = Array.from(fileList).filter(f => f.name.toLowerCase().endsWith(".pdf"));
+    if(files.length===0) return;
+    importView.queue.push(...files.map(f => ({ name:f.name, status:"queued", message:"Queued…" })));
+    importView.renderQueue();
+    let liveBank = state.bank.questions;
+    for(const file of files){
+      const item = importView.queue.find(q => q.name===file.name && q.status==="queued");
+      if(item){ item.status="loading"; item.message="Reading PDF…"; importView.renderQueue(); }
+      try{
+        const text = await readPDFText(file);
+        if(!text.trim()) throw new Error("No readable text (scanned/image PDF?)");
+        if(item){ item.message="Parsing MCQs…"; importView.renderQueue(); }
+        const { mcqs, blocksFound, recognized } = extractMCQsFromText(text, liveBank, importView.defaultTopic);
+        if(mcqs.length===0){
+          if(item){ item.status="error"; item.message = blocksFound===0 ? "No numbered questions found" : "No valid MCQs recognized (check format)"; }
+        } else {
+          liveBank = [...liveBank, ...mcqs];
+          importView.pendingReview.push(...mcqs);
+          if(item){ item.status="done"; item.message=`${mcqs.length} MCQs parsed — review below`; }
+        }
+      }catch(err){
+        if(item){ item.status="error"; item.message = err.message || "Failed to process"; }
+      }
+      importView.renderQueue();
+    }
+    importView.renderReview();
+  },
+  renderReview(){
+    const area = document.getElementById("reviewArea");
+    if(!area) return;
+    if(importView.pendingReview.length===0){ area.innerHTML=""; return; }
+    area.innerHTML = `
+      <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">
+        <div class="flex-between" style="margin-bottom:12px;">
+          <div style="font-size:14px;font-weight:600;">Review ${importView.pendingReview.length} extracted question${importView.pendingReview.length!==1?"s":""}</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost" id="discardAll" style="font-size:12px;padding:6px 10px;">Discard All</button>
+            <button class="btn btn-primary" id="saveAll" style="font-size:12px;padding:6px 12px;">Save All to Bank</button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;max-height:480px;overflow-y:auto;">
+          ${importView.pendingReview.map((q,i) => `
+            <div class="card" style="padding:14px;margin-bottom:0;">
+              <div style="display:flex;justify-content:space-between;gap:8px;">
+                <div style="font-size:13px;font-weight:600;flex:1;">${i+1}. ${esc(q.question)}</div>
+                <button class="btn btn-danger discardOne" data-i="${i}" style="padding:2px 8px;font-size:11px;flex-shrink:0;">✕</button>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+                ${q.options.map((opt,oi) => `
+                  <span style="font-size:12px;padding:2px 8px;border-radius:6px;
+                    background:${oi===q.answer?"var(--greenDim)":"var(--surface)"};
+                    color:${oi===q.answer?"var(--green)":"var(--muted)"};
+                    border:1px solid ${oi===q.answer?"var(--green)":"var(--border)"};">
+                    ${["A","B","C","D"][oi]}. ${esc(opt)}
+                  </span>`).join("")}
+              </div>
+              ${!q.hasAnswerKey ? `<div style="font-size:11px;color:var(--yellow);margin-top:6px;">⚠️ No answer key detected — defaulted to A, please verify</div>` : ""}
+              <div style="margin-top:6px;"><span class="tag">${esc(q.topic)}</span></div>
+            </div>`).join("")}
+        </div>
+      </div>`;
+    document.getElementById("saveAll").onclick = () => {
+      const existingQ = new Set(state.bank.questions.map(q=>q.question.trim().toLowerCase()));
+      const fresh = importView.pendingReview.filter(q => !existingQ.has(q.question.trim().toLowerCase()));
+      state.bank.questions.push(...fresh);
+      save();
+      importView.pendingReview = [];
+      importView.queue = [];
+      render();
+      alert(`Saved ${fresh.length} question(s) to your bank.`);
+    };
+    document.getElementById("discardAll").onclick = () => {
+      importView.pendingReview = [];
+      importView.renderReview();
+    };
+    document.querySelectorAll(".discardOne").forEach(btn => {
+      btn.onclick = () => {
+        importView.pendingReview.splice(Number(btn.dataset.i), 1);
+        importView.renderReview();
+      };
+    });
+  }
+};
+
+// ═══════════════════════ QUIZ VIEW ═══════════════════════
+const quizView = {
+  phase: "setup", mode: "custom",
+  config: { count:20, topic:"all", timed:true, minsPerQ:1, bookmarkedOnly:false, negMark:false },
+  sections: [{ topic:"all", count:10 }],
+  questions: [], current:0, selected:null, answers:[], flagged:{}, showExp:false,
+  secondsLeft:0, elapsed:0, timerHandle:null,
+
+  topics(){ return ["all", ...new Set(state.bank.questions.map(q=>q.topic).filter(Boolean))]; },
+  availablePool(){
+    return state.bank.questions.filter(q => quizView.config.topic==="all" || q.topic===quizView.config.topic)
+      .filter(q => !quizView.config.bookmarkedOnly || q.bookmarked);
+  },
+  mistakesPool(){ return state.bank.questions.filter(q => q.attempts>0 && q.correctCount<q.attempts); },
+
+  buildQuiz(pool, count){
+    const picked = shuffle(pool).slice(0, Math.min(count, pool.length));
+    return picked.map(q => ({ ...q, shuffledOptions: shuffle(q.options.map((o,i)=>({text:o, origIdx:i}))) }));
+  },
+  start(){
+    let built = [];
+    if(quizView.mode==="mistakes") built = quizView.buildQuiz(quizView.mistakesPool(), quizView.mistakesPool().length);
+    else if(quizView.mode==="sections"){
+      quizView.sections.forEach(sec => {
+        const pool = state.bank.questions.filter(q => sec.topic==="all" || q.topic===sec.topic);
+        built = built.concat(quizView.buildQuiz(pool, Number(sec.count)));
+      });
+    } else built = quizView.buildQuiz(quizView.availablePool(), Number(quizView.config.count));
+
+    quizView.questions = built; quizView.current=0; quizView.selected=null;
+    quizView.answers = new Array(built.length).fill(null);
+    quizView.flagged = {}; quizView.showExp=false; quizView.elapsed=0;
+    if(quizView.config.timed) quizView.secondsLeft = built.length * Number(quizView.config.minsPerQ) * 60;
+    quizView.phase = "quiz";
+    render();
+    quizView.startTimer();
+  },
+  startTimer(){
+    clearInterval(quizView.timerHandle);
+    quizView.timerHandle = setInterval(() => {
+      quizView.elapsed += 1;
+      if(quizView.config.timed){
+        quizView.secondsLeft -= 1;
+        if(quizView.secondsLeft <= 0){
+          quizView.secondsLeft = 0;
+          clearInterval(quizView.timerHandle);
+          quizView.finish();
+          return;
+        }
+        const el = document.getElementById("timerDisplay");
+        if(el) el.textContent = "⏱ " + fmtTime(quizView.secondsLeft);
+        const elEl = document.getElementById("timerDisplay");
+        if(elEl && quizView.secondsLeft<30) elEl.style.color = "var(--red)";
+      }
+    }, 1000);
+  },
+  finish(){
+    clearInterval(quizView.timerHandle);
+    const answered = quizView.answers.filter(Boolean);
+    const correct = answered.filter(a=>a.correct).length;
+    state.bank.sessions.unshift({
+      mode:"quiz",
+      topic: quizView.mode==="mistakes"?"mistakes":quizView.mode==="sections"?"sections":quizView.config.topic,
+      total: quizView.questions.length, correct, elapsed: quizView.elapsed, date: Date.now(), negMark: quizView.config.negMark
+    });
+    state.bank.sessions = state.bank.sessions.slice(0,100);
+    bumpStreak();
+    const map = new Map(answered.map(a => [a.id, a.correct]));
+    state.bank.questions.forEach(q => {
+      if(map.has(q.id)){ q.attempts=(q.attempts||0)+1; q.correctCount=(q.correctCount||0)+(map.get(q.id)?1:0); }
+    });
+    save();
+    quizView.phase = "result";
+    render();
+  },
+  choose(idx){
+    if(quizView.selected!==null) return;
+    quizView.selected = idx;
+    const q = quizView.questions[quizView.current];
+    const chosenOrig = q.shuffledOptions[idx].origIdx;
+    quizView.answers[quizView.current] = { id:q.id, correct: chosenOrig===q.answer, chosenIdx: chosenOrig };
+    quizView.showExp = true;
+    render();
+  },
+  goTo(i){ quizView.current=i; quizView.selected=null; quizView.showExp=false; render(); },
+  skip(){
+    const q = quizView.questions[quizView.current];
+    if(!quizView.answers[quizView.current]) quizView.answers[quizView.current] = { id:q.id, correct:false, chosenIdx:-2, skipped:true };
+    if(quizView.current+1 < quizView.questions.length) quizView.goTo(quizView.current+1);
+    else quizView.finish();
+  },
+  next(){
+    if(quizView.current+1 < quizView.questions.length) quizView.goTo(quizView.current+1);
+    else quizView.finish();
+  },
+  toggleFlag(){ quizView.flagged[quizView.current] = !quizView.flagged[quizView.current]; render(); },
+
+  html(){
+    if(quizView.phase==="setup") return quizView.setupHTML();
+    if(quizView.phase==="result") return quizView.resultHTML();
+    return quizView.quizHTML();
+  },
+  setupHTML(){
+    const c = quizView.config;
+    return `
+    <div class="card">
+      <div style="font-size:16px;font-weight:700;margin-bottom:16px;">📝 Mock Test Setup</div>
+      <div class="row" style="margin-bottom:16px;">
+        <button class="btn btn-ghost modeBtn ${quizView.mode==="custom"?"active":""}" data-mode="custom" style="flex:1;">Custom</button>
+        <button class="btn btn-ghost modeBtn ${quizView.mode==="sections"?"active":""}" data-mode="sections" style="flex:1;">Sectioned</button>
+        <button class="btn btn-ghost modeBtn ${quizView.mode==="mistakes"?"active":""}" data-mode="mistakes" style="flex:1;" ${quizView.mistakesPool().length===0?"disabled":""}>Mistakes (${quizView.mistakesPool().length})</button>
+      </div>
+      ${quizView.mode==="custom" ? `
+        <div class="col">
+          <div>
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Topic</label>
+            <select id="qTopic">${quizView.topics().map(t=>`<option value="${esc(t)}" ${c.topic===t?"selected":""}>${t==="all"?"All Topics":esc(t)}</option>`).join("")}</select>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Number of Questions</label>
+            <select id="qCount">${[10,20,30,50,100].map(n=>`<option value="${n}" ${c.count==n?"selected":""}>${n} Questions</option>`).join("")}</select>
+          </div>
+          <label class="chk"><input type="checkbox" id="qBookmarkedOnly" style="width:auto;" ${c.bookmarkedOnly?"checked":""}/> Only bookmarked questions</label>
+          <div style="font-size:13px;color:var(--muted);">Available: ${quizView.availablePool().length} questions</div>
+        </div>` : ""}
+      ${quizView.mode==="sections" ? `
+        <div class="col" id="sectionsArea">
+          ${quizView.sections.map((sec,i) => `
+            <div class="row" style="align-items:center;">
+              <select class="secTopic" data-i="${i}" style="flex:2;">${quizView.topics().map(t=>`<option value="${esc(t)}" ${sec.topic===t?"selected":""}>${t==="all"?"All Topics":esc(t)}</option>`).join("")}</select>
+              <select class="secCount" data-i="${i}" style="flex:1;">${[5,10,15,20,25].map(n=>`<option value="${n}" ${sec.count==n?"selected":""}>${n}</option>`).join("")}</select>
+              ${quizView.sections.length>1 ? `<button class="btn btn-danger removeSec" data-i="${i}" style="padding:8px 10px;">✕</button>` : ""}
+            </div>`).join("")}
+          <button class="btn btn-ghost" id="addSection">+ Add Section</button><div style="font-size:13px;color:var(--muted);">Total: ${quizView.sections.reduce((a,s)=>a+Number(s.count),0)} questions across ${quizView.sections.length} section(s)</div>
+        </div>` : ""}
+      ${quizView.mode==="mistakes" ? `<div style="font-size:13px;color:var(--muted);">This builds a quiz from all ${quizView.mistakesPool().length} question(s) you've previously answered incorrectly.</div>` : ""}
+      <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:16px;" class="col">
+        <label class="chk"><input type="checkbox" id="qTimed" style="width:auto;" ${c.timed?"checked":""}/> Timed test</label>
+        ${c.timed ? `
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Minutes per question</label>
+          <select id="qMinsPerQ">${[0.5,1,1.5,2].map(n=>`<option value="${n}" ${c.minsPerQ==n?"selected":""}>${n} min</option>`).join("")}</select>
+        </div>` : ""}
+        <label class="chk"><input type="checkbox" id="qNegMark" style="width:auto;" ${c.negMark?"checked":""}/> Negative marking (−0.25 per wrong answer, like real PPSC)</label>
+      </div>
+      <button class="btn btn-primary" id="startQuiz" style="margin-top:16px;width:100%;"
+        ${ (quizView.mode==="custom" && quizView.availablePool().length===0) ||
+           (quizView.mode==="mistakes" && quizView.mistakesPool().length===0) ||
+           (quizView.mode==="sections" && quizView.sections.reduce((a,s)=>a+Number(s.count),0)===0) ? "disabled" : "" }>
+        Start Test
+      </button>
+    </div>`;
+  },
+  resultHTML(){
+    const answers = quizView.answers, questions = quizView.questions;
+    const answered = answers.filter(Boolean);
+    const correct = answered.filter(a=>a.correct).length;
+    const wrong = answered.filter(a=>!a.correct && !a.skipped).length;
+    const skipped = answered.filter(a=>a.skipped).length;
+    const pct = Math.round(correct/questions.length*100);
+    const netScore = quizView.config.negMark ? (correct - wrong*0.25).toFixed(2) : null;
+    return `
+    <div class="card" style="text-align:center;">
+      <div style="font-size:48px;margin-bottom:12px;">${pct>=70?"🎉":"📚"}</div>
+      <div style="font-size:28px;font-weight:700;color:${pct>=70?"var(--green)":"var(--yellow)"};">${pct}%</div>
+      <div style="font-size:14px;color:var(--muted);margin-top:4px;">${correct} correct · ${wrong} wrong${skipped>0?` · ${skipped} skipped`:""}</div>
+      ${netScore!==null ? `<div style="font-size:14px;color:var(--purple);margin-top:4px;font-weight:600;">Net score (negative marking): ${netScore}</div>` : ""}
+      <div style="font-size:13px;color:var(--muted);margin-top:4px;">⏱ Time taken: ${fmtTime(quizView.elapsed)}</div>
+      <div style="display:flex;gap:10px;margin-top:24px;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-primary" id="newTest">New Test</button>
+        <button class="btn btn-ghost" id="retrySame">Retry Same</button>
+        <button class="btn btn-ghost" id="exportPdfBtn">📄 Export PDF</button>
+      </div>
+      <div style="margin-top:24px;">
+        ${questions.map((q,i) => {
+          const a = answers[i];
+          const sym = (!a || a.skipped) ? "○" : a.correct ? "✓" : "✗";
+          const col = (!a || a.skipped) ? "var(--muted)" : a.correct ? "var(--green)" : "var(--red)";
+          return `<div style="text-align:left;padding:10px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;">
+            <span style="color:${col};font-size:16px;">${sym}</span>
+            <div style="font-size:13px;color:var(--dim);">${esc(q.question)}</div>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>`;
+  },
+  quizHTML(){
+    const q = quizView.questions[quizView.current];
+    const progress = quizView.current/quizView.questions.length*100;
+    const answeredCount = quizView.answers.filter(Boolean).length;
+    const lowTime = quizView.config.timed && quizView.secondsLeft<30;
+    const flaggedList = Object.keys(quizView.flagged).filter(k=>quizView.flagged[k]).map(k=>Number(k)+1);
+    return `
+    <div class="flex-between">
+      <span style="font-size:13px;color:var(--muted);">Question ${quizView.current+1} of ${quizView.questions.length} · ${answeredCount} answered</span>
+      <div style="display:flex;gap:10px;align-items:center;">
+        ${quizView.config.timed ? `<span id="timerDisplay" style="font-size:13px;font-weight:700;color:${lowTime?"var(--red)":"var(--dim)"};">⏱ ${fmtTime(quizView.secondsLeft)}</span>` : ""}
+        <span class="tag">${esc(q.topic)}</span>
+      </div>
+    </div>
+    <div class="progress-bar" style="margin:10px 0 16px;"><div class="progress-fill" style="width:${progress}%;"></div></div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:20px;">
+        <div style="font-size:15px;font-weight:600;line-height:1.6;">${esc(q.question)}</div>
+        <button id="flagBtn" style="background:none;border:none;font-size:20px;cursor:pointer;flex-shrink:0;">${quizView.flagged[quizView.current]?"🚩":"⚐"}</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${q.shuffledOptions.map((opt,i) => {
+          const isSelected = quizView.selected===i;
+          const isCorrect = opt.origIdx===q.answer;
+          let bg="var(--surface)", border="var(--border)", color="var(--text)";
+          if(quizView.selected!==null){
+            if(isCorrect){ bg="var(--greenDim)"; border="var(--green)"; color="var(--green)"; }
+            else if(isSelected){ bg="var(--redDim)"; border="var(--red)"; color="var(--red)"; }
+          }
+          return `<button class="opt-btn choiceBtn" data-i="${i}" style="background:${bg};border-color:${border};color:${color};" ${quizView.selected!==null?"disabled":""}>
+            <span style="font-weight:700;margin-right:10px;">${["A","B","C","D"][i]}.</span>${esc(opt.text)}
+          </button>`;
+        }).join("")}
+      </div>
+      ${quizView.showExp && q.explanation ? `<div style="margin-top:16px;padding:12px 14px;background:var(--accentDim);border-radius:8px;font-size:13px;color:var(--dim);border-left:3px solid var(--accent);">💡 ${esc(q.explanation)}</div>` : ""}
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        ${quizView.selected===null ? `<button class="btn btn-ghost" id="skipBtn" style="flex:1;">Skip</button>` : ""}
+        ${quizView.selected!==null ? `<button class="btn btn-primary" id="nextBtn" style="flex:1;">${quizView.current+1<quizView.questions.length?"Next Question →":"See Results"}</button>` : ""}
+        ${quizView.selected===null && quizView.current+1<quizView.questions.length ? `<button class="btn btn-ghost" id="nextNoAnswerBtn" style="flex:1;">Next →</button>` : ""}
+      </div>
+    </div>
+    ${flaggedList.length>0 ? `<div style="font-size:12px;color:var(--yellow);">🚩 Flagged for review: questions ${flaggedList.join(", ")}</div>` : ""}
+    `;
+  },
+  attach(){
+    if(quizView.phase==="setup"){
+      document.querySelectorAll(".modeBtn").forEach(btn => btn.onclick = () => { quizView.mode = btn.dataset.mode; render(); });
+      const topicSel = document.getElementById("qTopic"); if(topicSel) topicSel.onchange = () => { quizView.config.topic = topicSel.value; render(); };
+      const countSel = document.getElementById("qCount"); if(countSel) countSel.onchange = () => { quizView.config.count = countSel.value; };
+      const bmOnly = document.getElementById("qBookmarkedOnly"); if(bmOnly) bmOnly.onchange = () => { quizView.config.bookmarkedOnly = bmOnly.checked; render(); };
+      const timed = document.getElementById("qTimed"); if(timed) timed.onchange = () => { quizView.config.timed = timed.checked; render(); };
+      const mins = document.getElementById("qMinsPerQ"); if(mins) mins.onchange = () => { quizView.config.minsPerQ = mins.value; };
+      const neg = document.getElementById("qNegMark"); if(neg) neg.onchange = () => { quizView.config.negMark = neg.checked; };
+      document.querySelectorAll(".secTopic").forEach(sel => sel.onchange = () => { quizView.sections[Number(sel.dataset.i)].topic = sel.value; render(); });
+      document.querySelectorAll(".secCount").forEach(sel => sel.onchange = () => { quizView.sections[Number(sel.dataset.i)].count = sel.value; render(); });
+      document.querySelectorAll(".removeSec").forEach(btn => btn.onclick = () => { quizView.sections.splice(Number(btn.dataset.i),1); render(); });
+      const addSec = document.getElementById("addSection"); if(addSec) addSec.onclick = () => { quizView.sections.push({topic:"all",count:10}); render(); };
+      const startBtn = document.getElementById("startQuiz"); if(startBtn) startBtn.onclick = quizView.start;
+    } else if(quizView.phase==="quiz"){
+      document.querySelectorAll(".choiceBtn").forEach(btn => btn.onclick = () => quizView.choose(Number(btn.dataset.i)));
+      const flagBtn = document.getElementById("flagBtn"); if(flagBtn) flagBtn.onclick = quizView.toggleFlag;
+      const skipBtn = document.getElementById("skipBtn"); if(skipBtn) skipBtn.onclick = quizView.skip;
+      const nextBtn = document.getElementById("nextBtn"); if(nextBtn) nextBtn.onclick = quizView.next;
+      const nextNoAns = document.getElementById("nextNoAnswerBtn"); if(nextNoAns) nextNoAns.onclick = () => quizView.goTo(quizView.current+1);
+    } else if(quizView.phase==="result"){
+      document.getElementById("newTest").onclick = () => { quizView.phase="setup"; render(); };
+      document.getElementById("retrySame").onclick = quizView.start;
+      document.getElementById("exportPdfBtn").onclick = () => exportResultPDF({
+        title:"PPSC Mock Test Result", questions: quizView.questions,
+        answers: quizView.questions.map((_,i)=>quizView.answers[i] || {correct:false, chosenIdx:-1}),
+        elapsed: quizView.elapsed, topic: quizView.config.topic, negMark: quizView.config.negMark
+      });
+    }
+  }
+};
+
+// ═══════════════════════ FLASHCARD VIEW ═══════════════════════
+const flashView = {
+  phase:"setup", srsMode:true, config:{ topic:"all", count:20, bookmarkedOnly:false },
+  cards:[], idx:0, flipped:false, ratings:[], elapsed:0, timerHandle:null,
+
+  topics(){ return ["all", ...new Set(state.bank.questions.map(q=>q.topic).filter(Boolean))]; },
+  basePool(){
+    return state.bank.questions.filter(q => flashView.config.topic==="all" || q.topic===flashView.config.topic)
+      .filter(q => !flashView.config.bookmarkedOnly || q.bookmarked);
+  },
+  duePool(){ return flashView.basePool().filter(q => !q.dueAt || q.dueAt<=Date.now()); },
+  pool(){ return flashView.srsMode ? flashView.duePool() : flashView.basePool(); },
+
+  start(){
+    const ordered = shuffle(flashView.pool());
+    flashView.cards = ordered.slice(0, Math.min(Number(flashView.config.count), ordered.length));
+    flashView.idx=0; flashView.flipped=false; flashView.ratings=[]; flashView.elapsed=0;
+    flashView.phase="flash"; render();
+    clearInterval(flashView.timerHandle);
+    flashView.timerHandle = setInterval(() => {
+      flashView.elapsed += 1;
+      const el = document.getElementById("flashTimer");
+      if(el) el.textContent = "⏱ " + fmtTime(flashView.elapsed);
+    }, 1000);
+  },
+  rate(r){
+    const card = flashView.cards[flashView.idx];
+    flashView.ratings.push({ id: card.id, correct: r==="know" });
+    if(flashView.idx+1 < flashView.cards.length){
+      flashView.idx += 1; flashView.flipped=false; render();
+    } else {
+      clearInterval(flashView.timerHandle);
+      const correct = flashView.ratings.filter(x=>x.correct).length;
+      state.bank.sessions.unshift({ mode:"flash", topic: flashView.config.topic, total: flashView.cards.length, correct, elapsed: flashView.elapsed, date: Date.now() });
+      state.bank.sessions = state.bank.sessions.slice(0,100);
+      bumpStreak();
+      const map = new Map(flashView.ratings.map(r=>[r.id,r.correct]));
+      state.bank.questions.forEach(q => {
+        if(map.has(q.id)){
+          q.attempts=(q.attempts||0)+1; q.correctCount=(q.correctCount||0)+(map.get(q.id)?1:0);
+          if(flashView.srsMode){ const sched = nextSchedule(q, map.get(q.id)?1:0); Object.assign(q, sched); }
+        }
+      });
+      save();
+      flashView.phase="result"; render();
+    }
+  },
+  toggleBookmark(id){
+    const q = state.bank.questions.find(x=>x.id===id);
+    if(q){ q.bookmarked = !q.bookmarked; save(); render(); }
+  },
+
+  html(){
+    if(flashView.phase==="setup") return flashView.setupHTML();
+    if(flashView.phase==="result") return flashView.resultHTML();
+    return flashView.cardHTML();
+  },
+  setupHTML(){
+    const pool = flashView.pool(), base = flashView.basePool(), due = flashView.duePool();
+    return `
+    <div class="card">
+      <div style="font-size:16px;font-weight:700;margin-bottom:16px;">🃏 Flashcard Study</div>
+      <div class="col">
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Topic</label>
+          <select id="fTopic">${flashView.topics().map(t=>`<option value="${esc(t)}" ${flashView.config.topic===t?"selected":""}>${t==="all"?"All Topics":esc(t)}</option>`).join("")}</select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Cards</label>
+          <select id="fCount">${[10,20,30,50].map(n=>`<option value="${n}" ${flashView.config.count==n?"selected":""}>${n} Cards</option>`).join("")}</select>
+        </div>
+        <label class="chk"><input type="checkbox" id="fSrs" style="width:auto;" ${flashView.srsMode?"checked":""}/> Spaced repetition (only due cards, schedule by recall)</label>
+        <label class="chk"><input type="checkbox" id="fBookmarkedOnly" style="width:auto;" ${flashView.config.bookmarkedOnly?"checked":""}/> Only bookmarked questions</label>
+        <div style="font-size:13px;color:var(--muted);">Available: ${pool.length} ${flashView.srsMode?"due":""} questions${flashView.srsMode && base.length>due.length ? ` (${base.length-due.length} not due yet)` : ""}</div>
+        <button class="btn btn-primary" id="startFlash" ${pool.length===0?"disabled":""}>Start Flashcards</button>
+      </div>
+    </div>`;
+  },
+  resultHTML(){
+    const know = flashView.ratings.filter(r=>r.correct).length;
+    return `
+    <div class="card" style="text-align:center;">
+      <div style="font-size:40px;margin-bottom:12px;">✅</div>
+      <div style="font-size:22px;font-weight:700;">Session Complete!</div>
+      <div style="color:var(--green);font-size:18px;margin-top:8px;">Knew: ${know}/${flashView.cards.length}</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px;">⏱ Time: ${fmtTime(flashView.elapsed)}</div>
+      ${flashView.srsMode ? `<div style="font-size:12px;color:var(--purple);margin-top:8px;">Cards you knew are scheduled further out; missed ones will resurface sooner.</div>` : ""}
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:20px;">
+        <button class="btn btn-primary" id="newFlashSession">New Session</button>
+        <button class="btn btn-ghost" id="retryFlash">Retry</button>
+      </div>
+    </div>`;
+  },
+  cardHTML(){
+    const card = flashView.cards[flashView.idx];
+    const progress = flashView.idx/flashView.cards.length*100;
+    return `
+    <div class="flex-between">
+      <span style="font-size:13px;color:var(--muted);">Card ${flashView.idx+1} / ${flashView.cards.length}</span>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <span id="flashTimer" style="font-size:13px;color:var(--muted);">⏱ ${fmtTime(flashView.elapsed)}</span>
+        <span class="tag" style="background:${diffColor(card.difficulty)}22;color:${diffColor(card.difficulty)};">${esc(card.difficulty||"medium")}</span>
+        <span class="tag">${esc(card.topic)}</span>
+      </div>
+    </div>
+    <div class="progress-bar" style="margin:10px 0 16px;"><div class="progress-fill" style="width:${progress}%;"></div></div>
+    <div style="position:relative;">
+      <button id="bookmarkCardBtn" style="position:absolute;top:12px;right:12px;background:none;border:none;font-size:20px;cursor:pointer;z-index:2;">${card.bookmarked?"⭐":"☆"}</button>
+      <div id="flipCard" style="background:var(--card);border:1px solid ${flashView.flipped?"var(--green)":"var(--border)"};border-radius:16px;padding:32px 24px;min-height:220px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
+        ${!flashView.flipped ? `<div style="font-size:11px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">Question</div>
+          <div style="font-size:16px;font-weight:600;line-height:1.6;">${esc(card.question)}</div>
+          <div style="margin-top:20px;font-size:12px;color:var(--muted);">Tap to reveal answer</div>` : `
+          <div style="font-size:11px;color:var(--green);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px;">Answer</div>
+          <div style="font-size:16px;font-weight:600;color:var(--green);margin-bottom:12px;">${esc(card.options[card.answer])}</div>
+          ${card.explanation ? `<div style="font-size:13px;color:var(--dim);line-height:1.5;">${esc(card.explanation)}</div>` : ""}`}
+      </div>
+    </div>
+    ${flashView.flipped ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;">
+      <button id="rateAgain" style="background:var(--redDim);color:var(--red);border:1px solid var(--red);padding:14px;font-size:14px;border-radius:10px;cursor:pointer;font-family:inherit;font-weight:600;">😕 Didn't Know</button>
+      <button id="rateKnow" style="background:var(--greenDim);color:var(--green);border:1px solid var(--green);padding:14px;font-size:14px;border-radius:10px;cursor:pointer;font-family:inherit;font-weight:600;">✅ Knew It</button>
+    </div>` : ""}
+    `;
+  },
+  attach(){
+    if(flashView.phase==="setup"){
+      const t = document.getElementById("fTopic"); if(t) t.onchange = () => { flashView.config.topic=t.value; render(); };
+      const c = document.getElementById("fCount"); if(c) c.onchange = () => { flashView.config.count=c.value; };
+      const srs = document.getElementById("fSrs"); if(srs) srs.onchange = () => { flashView.srsMode=srs.checked; render(); };
+      const bm = document.getElementById("fBookmarkedOnly"); if(bm) bm.onchange = () => { flashView.config.bookmarkedOnly=bm.checked; render(); };
+      const start = document.getElementById("startFlash"); if(start) start.onclick = flashView.start;
+    } else if(flashView.phase==="flash"){
+      document.getElementById("flipCard").onclick = () => { flashView.flipped=!flashView.flipped; render(); };
+      document.getElementById("bookmarkCardBtn").onclick = (e) => { e.stopPropagation(); flashView.toggleBookmark(flashView.cards[flashView.idx].id); };
+      const again = document.getElementById("rateAgain"); if(again) again.onclick = () => flashView.rate("again");
+      const know = document.getElementById("rateKnow"); if(know) know.onclick = () => flashView.rate("know");
+    } else if(flashView.phase==="result"){
+      document.getElementById("newFlashSession").onclick = () => { flashView.phase="setup"; render(); };
+      document.getElementById("retryFlash").onclick = flashView.start;
+    }
+  }
+};
+
+// ═══════════════════════ STATS VIEW ═══════════════════════
+const statsView = {
+  html(){
+    const { questions, sessions, streak } = state.bank;
+    if(questions.length===0) return `<div class="card" style="text-align:center;color:var(--muted);padding:40px;">No data yet. Import questions and take a quiz to see stats.</div>`;
+
+    const map = {};
+    questions.forEach(q => {
+      const t = q.topic || "Uncategorized";
+      if(!map[t]) map[t] = { attempts:0, correct:0, total:0 };
+      map[t].total += 1; map[t].attempts += q.attempts||0; map[t].correct += q.correctCount||0;
+    });
+    const topicStats = Object.entries(map).map(([topic,d]) => ({
+      topic, total:d.total, attempts:d.attempts, correct:d.correct,
+      accuracy: d.attempts ? Math.round(d.correct/d.attempts*100) : null,
+      mastered: d.attempts>=20 && (d.correct/d.attempts)>=0.9
+    })).sort((a,b) => (a.accuracy??999)-(b.accuracy??999));
+
+    const weakest = topicStats.filter(t=>t.accuracy!==null).slice(0,3);
+    const mastered = topicStats.filter(t=>t.mastered);
+    const totalAttempted = sessions.reduce((a,s)=>a+(s.total||0),0);
+    const totalCorrect = sessions.reduce((a,s)=>a+(s.correct||0),0);
+    const overallAcc = totalAttempted ? Math.round(totalCorrect/totalAttempted*100) : 0;
+    const avgTime = sessions.length ? Math.round(sessions.reduce((a,s)=>a+(s.elapsed||0),0)/sessions.length) : 0;
+
+    return `
+    <div class="grid3">
+      <div class="card" style="text-align:center;"><div style="font-size:24px;font-weight:700;color:var(--yellow);">🔥 ${streak.count||0}</div><div style="font-size:11px;color:var(--muted);margin-top:4px;">Day Streak</div></div>
+      <div class="card" style="text-align:center;"><div style="font-size:24px;font-weight:700;color:${overallAcc>=70?"var(--green)":"var(--yellow)"};">${overallAcc}%</div><div style="font-size:11px;color:var(--muted);margin-top:4px;">Overall Accuracy</div></div>
+      <div class="card" style="text-align:center;"><div style="font-size:24px;font-weight:700;color:var(--purple);">${fmtTime(avgTime)}</div><div style="font-size:11px;color:var(--muted);margin-top:4px;">Avg Session Time</div></div>
+    </div>
+    ${weakest.length>0 ? `
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--dim);">🎯 Weakest Topics — Focus Here</div>
+      ${weakest.map(t => `
+        <div style="margin-bottom:12px;">
+          <div class="flex-between" style="margin-bottom:4px;"><span style="font-size:13px;">${esc(t.topic)}</span><span style="font-size:13px;font-weight:700;color:${t.accuracy<50?"var(--red)":"var(--yellow)"};">${t.accuracy}%</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${t.accuracy}%;background:${t.accuracy<50?"var(--red)":"var(--yellow)"};"></div></div>
+        </div>`).join("")}
+    </div>` : ""}
+    ${mastered.length>0 ? `
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--dim);">🏆 Mastery Badges</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">${mastered.map(t=>`<span class="tag" style="background:var(--greenDim);color:var(--green);">🏆 ${esc(t.topic)} — Mastered</span>`).join("")}</div>
+    </div>` : ""}
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--dim);">All Topics</div>
+      ${topicStats.map(t => `
+        <div class="flex-between" style="padding:8px 0;border-bottom:1px solid var(--border);">
+          <div><div style="font-size:13px;">${t.mastered?"🏆 ":""}${esc(t.topic)}</div><div style="font-size:11px;color:var(--muted);">${t.total} questions · ${t.attempts} attempts</div></div>
+          <div style="font-size:14px;font-weight:700;color:${t.accuracy===null?"var(--muted)":t.accuracy>=70?"var(--green)":t.accuracy>=50?"var(--yellow)":"var(--red)"};">${t.accuracy===null?"—":t.accuracy+"%"}</div>
+        </div>`).join("")}
+    </div>
+    ${sessions.length>0 ? `
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--dim);">Session History</div>
+      ${sessions.slice(0,15).map((s,i) => `
+        <div class="flex-between" style="padding:8px 0;${i<14?"border-bottom:1px solid var(--border);":""}">
+          <div><span style="font-size:13px;">${s.mode==="quiz"?"📝":"🃏"} ${s.topic==="all"?"All Topics":esc(s.topic)}${s.negMark?" ⚠️":""}</span><div style="font-size:11px;color:var(--muted);">${fmtDate(s.date)}</div></div>
+          <div style="text-align:right;"><div style="font-size:13px;font-weight:700;color:${(s.correct/s.total)>=0.7?"var(--green)":"var(--yellow)"};">${s.correct}/${s.total}</div>${s.elapsed!=null?`<div style="font-size:11px;color:var(--muted);">⏱ ${fmtTime(s.elapsed)}</div>`:""}</div>
+        </div>`).join("")}
+    </div>` : ""}
+    `;
+  }
+};
+
+// ═══════════════════════ MANAGE BANK VIEW ═══════════════════════
+const manageView = {
+  search:"", topic:"all", bookmarkedOnly:false, difficulty:"all",
+  topics(){ return ["all", ...new Set(state.bank.questions.map(q=>q.topic).filter(Boolean))]; },
+  filtered(){
+    return state.bank.questions.filter(q => {
+      const matchTopic = manageView.topic==="all" || q.topic===manageView.topic;
+      const matchSearch = !manageView.search || q.question.toLowerCase().includes(manageView.search.toLowerCase());
+      const matchBookmark = !manageView.bookmarkedOnly || q.bookmarked;
+      const matchDiff = manageView.difficulty==="all" || q.difficulty===manageView.difficulty;
+      return matchTopic && matchSearch && matchBookmark && matchDiff;
+    });
+  },
+  html(){
+    const filtered = manageView.filtered();
+    return `
+    <button class="btn btn-primary" id="addQBtn" style="width:100%;margin-bottom:16px;">+ Add Question Manually</button>
+    <div class="row" style="margin-bottom:10px;">
+      <input id="searchInput" placeholder="Search questions…" value="${esc(manageView.search)}" />
+      <select id="topicFilter" style="width:auto;min-width:130px;">${manageView.topics().map(t=>`<option value="${esc(t)}" ${manageView.topic===t?"selected":""}>${t==="all"?"All":esc(t)}</option>`).join("")}</select>
+    </div>
+    <div class="row" style="margin-bottom:10px;align-items:center;flex-wrap:wrap;">
+      <select id="diffFilter" style="width:auto;min-width:130px;">
+        <option value="all" ${manageView.difficulty==="all"?"selected":""}>All Difficulties</option>
+        <option value="easy" ${manageView.difficulty==="easy"?"selected":""}>Easy</option>
+        <option value="medium" ${manageView.difficulty==="medium"?"selected":""}>Medium</option>
+        <option value="hard" ${manageView.difficulty==="hard"?"selected":""}>Hard</option>
+      </select>
+      <label class="chk"><input type="checkbox" id="bmFilter" style="width:auto;" ${manageView.bookmarkedOnly?"checked":""}/> Bookmarked only</label>
+    </div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px;">${filtered.length} questions</div>
+    ${filtered.length===0 ? `<div style="text-align:center;color:var(--muted);padding:40px;">No questions found</div>` :
+      filtered.map((q,i) => `
+        <div class="card" style="position:relative;">
+          <div style="display:flex;justify-content:space-between;gap:10px;">
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;line-height:1.5;margin-bottom:8px;">${i+1}. ${esc(q.question)}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">
+                ${q.options.map((opt,oi) => `<span style="font-size:12px;padding:2px 8px;border-radius:6px;background:${oi===q.answer?"var(--greenDim)":"var(--surface)"};color:${oi===q.answer?"var(--green)":"var(--muted)"};border:1px solid ${oi===q.answer?"var(--green)":"var(--border)"};">${["A","B","C","D"][oi]}. ${esc(opt)}</span>`).join("")}
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                ${q.topic ? `<span class="tag">${esc(q.topic)}</span>` : ""}
+                <span class="tag" style="background:${diffColor(q.difficulty)}22;color:${diffColor(q.difficulty)};">${esc(q.difficulty||"medium")}</span>
+                ${q.attempts>0 ? `<span style="font-size:11px;color:var(--muted);">${q.correctCount}/${q.attempts} correct</span>` : ""}
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:center;flex-shrink:0;">
+              <button class="bmBtn" data-id="${q.id}" style="background:none;border:none;font-size:18px;cursor:pointer;">${q.bookmarked?"⭐":"☆"}</button>
+              <button class="editBtn btn btn-ghost" data-id="${q.id}" style="padding:4px 10px;font-size:12px;">✎</button>
+              <button class="delBtn btn btn-danger" data-id="${q.id}" style="padding:4px 10px;font-size:12px;">✕</button>
+            </div>
+          </div>
+        </div>`).join("")
+    }`;
+  },
+  attach(){
+    document.getElementById("addQBtn").onclick = () => { state.editingQ = "new"; render(); };
+    document.getElementById("searchInput").oninput = (e) => { manageView.search = e.target.value; render(); restoreFocus("searchInput"); };
+    document.getElementById("topicFilter").onchange = (e) => { manageView.topic = e.target.value; render(); };
+    document.getElementById("diffFilter").onchange = (e) => { manageView.difficulty = e.target.value; render(); };
+    document.getElementById("bmFilter").onchange = (e) => { manageView.bookmarkedOnly = e.target.checked; render(); };
+    document.querySelectorAll(".bmBtn").forEach(btn => btn.onclick = () => {
+      const q = state.bank.questions.find(x=>x.id===btn.dataset.id);
+      if(q){ q.bookmarked=!q.bookmarked; save(); render(); }
+    });
+    document.querySelectorAll(".editBtn").forEach(btn => btn.onclick = () => {
+      state.editingQ = state.bank.questions.find(x=>x.id===btn.dataset.id);
+      render();
+    });
+    document.querySelectorAll(".delBtn").forEach(btn => btn.onclick = () => {
+      if(confirm("Delete this question?")){
+        state.bank.questions = state.bank.questions.filter(x=>x.id!==btn.dataset.id);
+        save(); render();
+      }
+    });
+  }
+};
+function restoreFocus(id){ const el = document.getElementById(id); if(el){ el.focus(); const v=el.value; el.value=""; el.value=v; } }
+
+// ═══════════════════════ BACKUP / RESTORE VIEW ═══════════════════════
+const BACKUP_TS_KEY = "ppsc_last_backup_ts";
+const backupView = {
+  importStatus: null, // {type: 'success'|'error', message}
+
+  lastBackupTime(){
+    try{ const t = localStorage.getItem(BACKUP_TS_KEY); return t ? Number(t) : null; }catch(e){ return null; }
+  },
+  exportBackup(){
+    const payload = {
+      app: "ppsc-mcq-bank",
+      version: 1,
+      exportedAt: Date.now(),
+      bank: state.bank
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const dateStr = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `ppsc-mcq-bank-backup-${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    localStorage.setItem(BACKUP_TS_KEY, String(Date.now()));
+    render();
+  },
+  handleImportFile(file){
+    if(!file){ return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try{
+        const parsed = JSON.parse(e.target.result);
+        const incoming = parsed && parsed.bank ? parsed.bank : parsed; // tolerate raw bank JSON too
+        if(!incoming || !Array.isArray(incoming.questions)){
+          throw new Error("This file doesn't look like a valid PPSC MCQ Bank backup.");
+        }
+        backupView.pendingImport = incoming;
+        backupView.importStatus = null;
+        render();
+      }catch(err){
+        backupView.importStatus = { type:"error", message: err.message || "Could not read this file. Make sure it's a backup JSON exported from this app." };
+        backupView.pendingImport = null;
+        render();
+      }
+    };
+    reader.onerror = () => {
+      backupView.importStatus = { type:"error", message:"Could not read the file." };
+      render();
+    };
+    reader.readAsText(file);
+  },
+  pendingImport: null,
+  confirmImport(mode){
+    // mode: "merge" | "replace"
+    const incoming = backupView.pendingImport;
+    if(!incoming) return;
+    if(mode === "replace"){
+      state.bank = {questions: incoming.questions || [],
+        sessions: incoming.sessions || [],
+        streak: incoming.streak || { count:0, lastDay:null }
+      };
+    } else {
+      const existingQ = new Set(state.bank.questions.map(q => q.question.trim().toLowerCase()));
+      const freshQs = (incoming.questions||[]).filter(q => !existingQ.has((q.question||"").trim().toLowerCase()));
+      state.bank.questions.push(...freshQs);
+      state.bank.sessions = [...(incoming.sessions||[]), ...state.bank.sessions].slice(0,150);
+      if(incoming.streak && incoming.streak.count > (state.bank.streak.count||0)) state.bank.streak = incoming.streak;
+    }
+    save();
+    backupView.pendingImport = null;
+    backupView.importStatus = { type:"success", message: mode==="replace" ? "Backup restored — bank replaced." : "Backup merged into your current bank." };
+    render();
+  },
+  html(){
+    const last = backupView.lastBackupTime();
+    const qCount = state.bank.questions.length;
+    return `
+    <div class="card">
+      <div style="font-size:16px;font-weight:700;margin-bottom:4px;">💾 Backup & Restore</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">
+        Your data lives in this browser's local storage only — it does <strong>not</strong> sync between browsers,
+        devices, or even different downloaded copies of this file. Export a backup file regularly, especially
+        before switching browsers or devices, so you never lose your question bank or progress.
+      </div>
+      <div style="padding:12px 14px;border-radius:8px;background:${last ? "var(--greenDim)" : "var(--yellowDim)"};border:1px solid ${last ? "var(--green)" : "var(--yellow)"};font-size:13px;color:${last ? "var(--green)" : "var(--yellow)"};margin-bottom:16px;">
+        ${last ? `Last backup: ${fmtDate(last)}` : "⚠️ You haven't exported a backup yet"}
+      </div>
+      <button class="btn btn-primary" id="exportBtn" style="width:100%;" ${qCount===0?"disabled":""}>
+        ⬇️ Export Backup (${qCount} question${qCount!==1?"s":""}, sessions, stats)
+      </button>
+    </div>
+
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:10px;">Restore from Backup</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">
+        Use this on a new browser, new device, or to recover lost data. Choose a backup .json file you previously exported.
+      </div>
+      <div class="dropzone" id="backupDropzone">
+        <input type="file" accept=".json,application/json" id="backupFileInput" style="display:none;" />
+        <div style="font-size:32px;margin-bottom:8px;">📂</div>
+        <div style="font-size:14px;font-weight:600;">Drop backup file here or click to browse</div>
+      </div>
+      <div id="backupStatusArea" style="margin-top:14px;"></div>
+      <div id="backupConfirmArea"></div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:14px;font-weight:600;margin-bottom:10px;">Tips</div>
+      <ul style="font-size:13px;color:var(--muted);line-height:1.8;padding-left:18px;">
+        <li>Export after big import sessions or before closing your browser for the day</li>
+        <li>Save the backup file somewhere safe — cloud storage, email to yourself, USB drive</li>
+        <li>"Merge" adds new questions without touching what you already have here; "Replace" wipes this bank and loads the backup exactly</li>
+        <li>Backup files are plain JSON — readable as a safety net even outside this app</li>
+      </ul>
+    </div>`;
+  },
+  attach(){
+    const exportBtn = document.getElementById("exportBtn");
+    if(exportBtn) exportBtn.onclick = backupView.exportBackup;
+
+    const dz = document.getElementById("backupDropzone");
+    const fileInput = document.getElementById("backupFileInput");
+    dz.onclick = () => fileInput.click();
+    dz.ondragover = (e) => e.preventDefault();
+    dz.ondrop = (e) => { e.preventDefault(); backupView.handleImportFile(e.dataTransfer.files[0]); };
+    fileInput.onchange = (e) => backupView.handleImportFile(e.target.files[0]);
+
+    const statusArea = document.getElementById("backupStatusArea");
+    if(backupView.importStatus){
+      const s = backupView.importStatus;
+      statusArea.innerHTML = `<div style="padding:12px 14px;border-radius:8px;font-size:13px;
+        background:${s.type==="success"?"var(--greenDim)":"var(--redDim)"};
+        color:${s.type==="success"?"var(--green)":"var(--red)"};
+        border:1px solid ${s.type==="success"?"var(--green)":"var(--red)"};">${esc(s.message)}</div>`;
+    }
+
+    const confirmArea = document.getElementById("backupConfirmArea");
+    if(backupView.pendingImport){
+      const incoming = backupView.pendingImport;
+      confirmArea.innerHTML = `
+        <div style="margin-top:14px;padding:14px;border-radius:8px;background:var(--surface);border:1px solid var(--border);">
+          <div style="font-size:13px;margin-bottom:10px;">Found <strong>${incoming.questions.length}</strong> question(s) and <strong>${(incoming.sessions||[]).length}</strong> session(s) in this backup. How do you want to import it?</div>
+          <div class="row">
+            <button class="btn btn-ghost" id="mergeBtn" style="flex:1;">Merge with current bank</button>
+            <button class="btn btn-danger" id="replaceBtn" style="flex:1;">Replace current bank</button>
+          </div>
+        </div>`;
+      document.getElementById("mergeBtn").onclick = () => backupView.confirmImport("merge");
+      document.getElementById("replaceBtn").onclick = () => {
+        if(confirm("This will permanently erase your current bank and replace it with the backup. Continue?")){
+          backupView.confirmImport("replace");
+        }
+      };
+    } else {
+      confirmArea.innerHTML = "";
+    }
+  }
+};
+
+
+// ═══════════════════════ EDITOR MODAL ═══════════════════════
+function showEditorModal(){
+  const q = state.editingQ;
+  const isNew = q === "new";
+  const base = isNew ? { question:"", options:["","","",""], answer:0, explanation:"", topic:"", difficulty:"medium" } : q;
+  const modalDiv = document.createElement("div");
+  modalDiv.id = "editorModalRoot";
+  modalDiv.style = "position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px;";
+  modalDiv.innerHTML = `
+    <div class="card" style="max-width:480px;width:100%;max-height:85vh;overflow-y:auto;" id="editorCard">
+      <div style="font-size:16px;font-weight:700;margin-bottom:16px;">${isNew?"Add New Question":"Edit Question"}</div>
+      <div class="col">
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Question</label>
+          <textarea id="edQuestion" rows="3">${esc(base.question)}</textarea>
+        </div>
+        ${[0,1,2,3].map(i => `
+          <div>
+            <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+              <input type="radio" name="edAnswer" value="${i}" style="width:auto;" ${base.answer===i?"checked":""}/>
+              Option ${["A","B","C","D"][i]} <span class="edAnswerLabel-${i}" style="color:var(--green);${base.answer===i?"":"display:none;"}">(correct)</span>
+            </label>
+            <input class="edOption" data-i="${i}" value="${esc(base.options[i]||"")}" />
+          </div>`).join("")}
+        <div>
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Explanation (optional)</label>
+          <textarea id="edExplanation" rows="2">${esc(base.explanation||"")}</textarea>
+        </div>
+        <div class="row">
+          <div style="flex:1;">
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Topic</label>
+            <input id="edTopic" value="${esc(base.topic||"")}" placeholder="e.g. Pakistan History" />
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px;">Difficulty</label>
+            <select id="edDifficulty">
+              <option value="easy" ${base.difficulty==="easy"?"selected":""}>Easy</option>
+              <option value="medium" ${base.difficulty==="medium"?"selected":""}>Medium</option>
+              <option value="hard" ${base.difficulty==="hard"?"selected":""}>Hard</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <button class="btn btn-ghost" id="cancelEdit" style="flex:1;">Cancel</button>
+          <button class="btn btn-primary" id="saveEdit" style="flex:1;">Save</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modalDiv);
+
+  modalDiv.onclick = (e) => { if(e.target===modalDiv){ state.editingQ=null; modalDiv.remove(); render(); } };
+  document.getElementById("editorCard").onclick = (e) => e.stopPropagation();
+  document.querySelectorAll('input[name="edAnswer"]').forEach(radio => {
+    radio.onchange = () => {
+      [0,1,2,3].forEach(i => {
+        document.querySelector(`.edAnswerLabel-${i}`).style.display = (Number(radio.value)===i) ? "inline" : "none";
+      });
+    };
+  });
+  document.getElementById("cancelEdit").onclick = () => { state.editingQ=null; modalDiv.remove(); render(); };
+  document.getElementById("saveEdit").onclick = () => {
+    const question = document.getElementById("edQuestion").value.trim();
+    const options = [0,1,2,3].map(i => document.querySelector(`.edOption[data-i="${i}"]`).value.trim());
+    const answerRadio = document.querySelector('input[name="edAnswer"]:checked');
+    const answer = answerRadio ? Number(answerRadio.value) : 0;
+    const explanation = document.getElementById("edExplanation").value.trim();
+    const topic = document.getElementById("edTopic").value.trim() || "Uncategorized";
+    const difficulty = document.getElementById("edDifficulty").value;
+    if(!question || options.some(o=>!o)){ alert("Please fill in the question and all 4 options."); return; }
+    if(isNew){
+      state.bank.questions.push({
+        question, options, answer, explanation, topic, difficulty,
+        id: uid(), addedAt: Date.now(), bookmarked:false, attempts:0, correctCount:0,
+        srsInterval:0, srsEase:2.5, srsReps:0, dueAt: Date.now()
+      });
+    } else {
+      const target = state.bank.questions.find(x=>x.id===q.id);
+      Object.assign(target, { question, options, answer, explanation, topic, difficulty });
+    }
+    save();
+    state.editingQ = null;
+    modalDiv.remove();
+    render();
+  };
+}
+
+// ─── PWA: service worker registration + install prompt ────────────────
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  showInstallBanner();
+});
+window.addEventListener("appinstalled", () => {
+  deferredInstallPrompt = null;
+  hideInstallBanner();
+});
+function showInstallBanner(){
+  if(document.getElementById("pwaInstallBanner")) return;
+  if(window.matchMedia("(display-mode: standalone)").matches) return; // already installed
+  const banner = document.createElement("div");
+  banner.id = "pwaInstallBanner";
+  banner.style = "position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--card);border-top:1px solid var(--accent);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 -4px 12px rgba(0,0,0,0.3);";
+  banner.innerHTML = `
+    <div style="font-size:13px;color:var(--text);">📲 Install PPSC MCQ Bank as an app on your phone</div>
+    <div style="display:flex;gap:8px;flex-shrink:0;">
+      <button id="pwaDismiss" class="btn btn-ghost" style="padding:6px 10px;font-size:12px;">Later</button>
+      <button id="pwaInstall" class="btn btn-primary" style="padding:6px 14px;font-size:12px;">Install</button>
+    </div>`;
+  document.body.appendChild(banner);
+  document.getElementById("pwaInstall").onclick = async () => {
+    if(!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    hideInstallBanner();
+  };
+  document.getElementById("pwaDismiss").onclick = hideInstallBanner;
+}
+function hideInstallBanner(){
+  const b = document.getElementById("pwaInstallBanner");
+  if(b) b.remove();
+}
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch((err) => console.warn("SW registration failed:", err));
+  });
+}
+
+// ─── Boot ──────────────────────────────────────────────────────────────
+load();
+render();
+</script>
+</body>
+</html>

@@ -1,17 +1,46 @@
 {
   "name": "PPSC MCQ Bank",
   "short_name": "PPSC MCQs",
-  "description": "Offline PPSC exam MCQ bank with mock tests, flashcards, and spaced repetition",
-  "start_url": "/ppsc-mcq-bank2/",
+  "description": "Offline PPSC exam MCQ bank with mock tests and flashcards",
+  "start_url": "/ppsc-mcq-bank2/index.html",
   "scope": "/ppsc-mcq-bank2/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#0F1117",
   "theme_color": "#0F1117",
   "categories": ["education", "productivity"],
+  "screenshots": [
+    {
+      "src": "/ppsc-mcq-bank2/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/ppsc-mcq-bank2/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
   "icons": [
-    { "src": "/ppsc-mcq-bank2/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/ppsc-mcq-bank2/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/ppsc-mcq-bank2/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/ppsc-mcq-bank2/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/ppsc-mcq-bank2/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/ppsc-mcq-bank2/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

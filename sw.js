@@ -1,17 +1,63 @@
 // Service Worker for PPSC MCQ Bank PWA
-const CACHE = 'ppsc-mcq-v1';
-const urlsToCache = ['./index.html', './icon-192.png', './icon-512.png'];
+const CACHE_NAME = 'ppsc-mcq-v2';
+const urlsToCache = [
+  '/ppsc-mcq-bank2/',
+  '/ppsc-mcq-bank2/index.html',
+  '/ppsc-mcq-bank2/manifest.json',
+  '/ppsc-mcq-bank2/icon-192.png',
+  '/ppsc-mcq-bank2/icon-512.png',
+  '/ppsc-mcq-bank2/icon-maskable-512.png'
+];
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(urlsToCache)));
+// Install event - cache files
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(urlsToCache).catch(() => {
+        return Promise.resolve();
+      });
+    })
+  );
+  self.skipWaiting();
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(self.clients.claim());
+// Activate event - clean up old caches
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames
+          .filter((cacheName) => cacheName !== CACHE_NAME)
+          .map((cacheName) => caches.delete(cacheName))
+      );
+    })
+  );
+  self.clients.claim();
 });
 
-self.addEventListener('fetch', (e) => {
-  e.respondWith(
-    caches.match(e.request).then((response) => response || fetch(e.request))
+// Fetch event - serve from cache, fallback to network
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      if (response) {
+        return response;
+      }
+      return fetch(event.request)
+        .then((response) => {
+          if (!response || response.status !== 200 || response.type === 'error') {
+            return response;
+          }
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request) || caches.match('/ppsc-mcq-bank2/index.html');
+        });
+    })
   );
 });
